@@ -2,6 +2,7 @@ use std::old_io;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
+use bmp;
 use ppm;
 use gif;
 use webp;
@@ -363,6 +364,13 @@ impl DynamicImage {
                 );
 
                 try!(g.encode(w));
+                Ok(())
+            }
+
+            image::ImageFormat::BMP => {
+                let mut b = bmp::BMPEncoder::new(self.to_rgb());
+
+                try!(b.encode(w));
                 Ok(())
             }
 

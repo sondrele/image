@@ -60,7 +60,8 @@ pub use image::ImageFormat:: {
     JPEG,
     GIF,
     WEBP,
-    PPM
+    PPM,
+    BMP,
 };
 
 // Image Types
@@ -109,6 +110,7 @@ pub mod math;
 pub mod imageops;
 
 // Image Codecs
+pub mod bmp;
 pub mod webp;
 pub mod ppm;
 pub mod png;
