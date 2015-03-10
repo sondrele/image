@@ -6,21 +6,24 @@ use std::old_io::IoResult;
 use buffer::{ArrayLike, ImageBuffer};
 use color::Rgb;
 
+/// A BMP encoder.
+///
+/// It supports encoding of RGB8 (24-bit), uncompressed BMP Version 3 images.
+///
 pub struct BMPEncoder<Image> {
     image: Image,
 }
 
 impl<Container> BMPEncoder<ImageBuffer<Rgb<u8>, Container>>
 where Container: ArrayLike<u8> {
+    /// Creates a new BMP encoder.
     pub fn new(image: ImageBuffer<Rgb<u8>, Container>) -> BMPEncoder<ImageBuffer<Rgb<u8>, Container>> {
         BMPEncoder {
             image: image,
         }
     }
 
-    /// Encodes the image ```image```
-    /// that has dimensions ```width``` and ```height```
-    /// and ```ColorType``` ```c```
+    /// Encodes an image from the internal image buffer.
     pub fn encode<W: Writer>(&mut self, w: &mut W) -> IoResult<()> {
         let width = self.image.width();
         let height = self.image.height();
