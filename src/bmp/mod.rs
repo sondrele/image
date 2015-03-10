@@ -9,5 +9,7 @@
 //!
 
 pub use self::encoder::BMPEncoder;
+pub use self::decoder::BMPDecoder;
 
 mod encoder;
+mod decoder;

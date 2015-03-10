@@ -514,6 +514,7 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
                   .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
 
     let format = match &ext[..] {
+        "bmp" => image::ImageFormat::BMP,
         "jpg" |
         "jpeg" => image::ImageFormat::JPEG,
         "png"  => image::ImageFormat::PNG,
@@ -562,6 +563,7 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
 /// Create a new image from a Reader
 pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
+        image::ImageFormat::BMP  => decoder_to_image(try!(bmp::BMPDecoder::new(r))),
         image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
         image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(old_io::BufferedReader::new(r))),
         image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(old_io::BufferedReader::new(r))),
