@@ -233,7 +233,7 @@ pub struct ImageBuffer<P: Pixel, Container> {
     width: u32,
     height: u32,
     type_marker: TypeId,
-    _phantom: PhantomData<P>, 
+    _phantom: PhantomData<P>,
     data: Container,
 }
 
@@ -440,6 +440,14 @@ impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> Index<(u32, u32)>
 
     fn index(&self, &(x, y): &(u32, u32)) -> &P {
         self.get_pixel(x, y)
+    }
+}
+
+impl<P: Pixel + 'static, Container: ArrayLike<P::Subpixel>> IndexMut<(u32, u32)>
+    for ImageBuffer<P, Container> where P::Subpixel: 'static {
+
+    fn index_mut(&mut self, &(x, y): &(u32, u32)) -> &mut P {
+        self.get_pixel_mut(x, y)
     }
 }
 
