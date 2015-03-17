@@ -1,4 +1,4 @@
-
+use std::num::SignedInt;
 use std::old_io;
 use std::old_io::{Seek, SeekCur, SeekSet};
 
@@ -55,6 +55,8 @@ pub struct BMPDecoder<R: Reader + Seek> {
 
     file_size: u32,
     pixel_offset: u32,
+    width: u32,
+    height: u32,
     header: BMPVersion3Header,
 }
 
@@ -69,6 +71,8 @@ impl<R: Reader + Seek> BMPDecoder<R> {
 
             file_size: 0,
             pixel_offset: 0,
+            width: 0,
+            height: 0,
             header: BMPVersion3Header::new(),
         };
         Ok(decoder)
@@ -148,6 +152,8 @@ impl<R: Reader + Seek> BMPDecoder<R> {
         }
 
         self.header = dib;
+        self.width = self.header.width.abs() as u32;
+        self.height = self.header.height.abs() as u32;
         self.state = State::HaveDibHeader;
         Ok(())
     }
@@ -155,14 +161,14 @@ impl<R: Reader + Seek> BMPDecoder<R> {
     fn read_pixels(&mut self) -> ImageResult<Vec<u8>> {
         try!(self.read_dib_header());
 
-        let mut data = Vec::with_capacity((self.header.height * self.header.width) as usize);
-        let padding = self.header.width as i64 % 4;
+        let mut data = Vec::with_capacity(self.height as usize * self.width as usize);
+        let padding = self.width as i64 % 4;
         // seek until data
         try!(self.r.seek(self.pixel_offset as i64, SeekSet));
         // read pixels until padding
         let mut px = [0; 3];
-        for _ in 0 .. self.header.height {
-            for _ in 0 .. self.header.width {
+        for _ in 0 .. self.height {
+            for _ in 0 .. self.width {
                 try!(self.r.read(&mut px));
                 data.push_all(&[px[2], px[1], px[0]]);
             }
@@ -177,7 +183,7 @@ impl<R: Reader + Seek> ImageDecoder for BMPDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_dib_header());
 
-        return Ok((self.header.width as u32, self.header.height as u32));
+        return Ok((self.width, self.height));
     }
 
     fn colortype(&mut self) -> ImageResult<color::ColorType> {
@@ -192,7 +198,7 @@ impl<R: Reader + Seek> ImageDecoder for BMPDecoder<R> {
     fn row_len(&mut self) -> ImageResult<usize> {
         let _ = try!(self.read_dib_header());
 
-        Ok(3 * self.header.width as usize)
+        Ok(3 * self.width as usize)
     }
 
     fn read_scanline(&mut self, _: &mut [u8]) -> ImageResult<u32> {
