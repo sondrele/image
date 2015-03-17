@@ -1,9 +1,9 @@
-
-use std::num::Float;
 use std::old_io;
 use std::old_io::IoResult;
+use std::ops::{Deref, DerefMut};
+use std::num::Float;
 
-use buffer::{ArrayLike, ImageBuffer};
+use buffer::ImageBuffer;
 use color::Rgb;
 
 /// A BMP encoder.
@@ -15,7 +15,7 @@ pub struct BMPEncoder<Image> {
 }
 
 impl<Container> BMPEncoder<ImageBuffer<Rgb<u8>, Container>>
-where Container: ArrayLike<u8> {
+where Container: Deref<Target=[u8]> + DerefMut {
     /// Creates a new BMP encoder.
     pub fn new(image: ImageBuffer<Rgb<u8>, Container>) -> BMPEncoder<ImageBuffer<Rgb<u8>, Container>> {
         BMPEncoder {
