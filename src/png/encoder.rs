@@ -7,10 +7,7 @@
 //! are interpreted as signed numbers and summed is chosen as the filter.
 
 use std::slice;
-use std::old_io:: {
-    IoResult,
-    MemWriter
-};
+use std::old_io::*;
 use std::num::FromPrimitive;
 use std::iter::repeat;
 
@@ -176,5 +173,5 @@ fn build_idat(image: &[u8], bpp: usize, width: u32, height: u32) -> Vec<u8> {
         slice::bytes::copy_memory(&mut p, row);
     }
 
-    deflate_bytes_zlib(&b).unwrap().to_vec()
+    deflate_bytes_zlib(&b).to_vec()
 }
