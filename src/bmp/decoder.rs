@@ -1,13 +1,11 @@
+use std::io::{Read, Seek, SeekFrom};
 use std::num::SignedInt;
-use std::old_io;
-use std::old_io::{Seek, SeekCur, SeekSet};
+
+use byteorder::{ReadBytesExt, LittleEndian};
 
 use color;
 
-use image::ImageDecoder;
-use image::DecodingResult;
-use image::ImageResult;
-use image::ImageError;
+use image::{DecodingResult, ImageDecoder, ImageError, ImageResult};
 use image::ImageError::{FormatError, UnsupportedError};
 
 enum State {
@@ -49,7 +47,7 @@ impl BMPVersion3Header {
 }
 
 /// A BMP decoder.
-pub struct BMPDecoder<R: Reader + Seek> {
+pub struct BMPDecoder<R: Read + Seek> {
     r: R,
     state: State,
 
@@ -60,10 +58,10 @@ pub struct BMPDecoder<R: Reader + Seek> {
     header: BMPVersion3Header,
 }
 
-impl<R: Reader + Seek> BMPDecoder<R> {
+impl<R: Read + Seek> BMPDecoder<R> {
     /// Creates a new BMP Decoder wrapped in an `ImageResult`.
     ///
-    /// The BMP decoder requires a `Reader` that also implements the `Seek` trait.
+    /// The BMP decoder requires a `Read` that also implements the `Seek` trait.
     pub fn new(r: R) -> ImageResult<BMPDecoder<R>> {
         let decoder = BMPDecoder {
             r: r,
@@ -82,16 +80,16 @@ impl<R: Reader + Seek> BMPDecoder<R> {
         match self.state {
             State::Start => {
                 let mut magic_numbers = [0; 2];
-                try!(self.r.read_at_least(2, &mut magic_numbers));
+                try!(self.r.read(&mut magic_numbers));
 
-                if magic_numbers != b"BM" {
+                if magic_numbers != b"BM"[..] {
                     return Err(FormatError("BMP signature not found".to_string()));
                 }
 
-                let file_size = try!(self.r.read_le_u32());
-                let _ = try!(self.r.read_le_u16()); // creator1
-                let _ = try!(self.r.read_le_u16()); // creator2
-                let pixel_offset = try!(self.r.read_le_u32());
+                let file_size = try!(self.r.read_u32::<LittleEndian>());
+                let _ = try!(self.r.read_u16::<LittleEndian>()); // creator1
+                let _ = try!(self.r.read_u16::<LittleEndian>()); // creator2
+                let pixel_offset = try!(self.r.read_u32::<LittleEndian>());
 
                 self.file_size = file_size;
                 self.pixel_offset = pixel_offset;
@@ -110,17 +108,17 @@ impl<R: Reader + Seek> BMPDecoder<R> {
         }
 
         let dib = BMPVersion3Header {
-            header_size:      try!(self.r.read_le_u32()),
-            width:            try!(self.r.read_le_i32()),
-            height:           try!(self.r.read_le_i32()),
-            planes:           try!(self.r.read_le_u16()),
-            bits_per_pixel:   try!(self.r.read_le_u16()),
-            compression:      try!(self.r.read_le_u32()),
-            bitmap_size:      try!(self.r.read_le_u32()),
-            horz_resolution:  try!(self.r.read_le_i32()),
-            vert_resolution:  try!(self.r.read_le_i32()),
-            colors_used:      try!(self.r.read_le_u32()),
-            colors_important: try!(self.r.read_le_u32()),
+            header_size:      try!(self.r.read_u32::<LittleEndian>()),
+            width:            try!(self.r.read_i32::<LittleEndian>()),
+            height:           try!(self.r.read_i32::<LittleEndian>()),
+            planes:           try!(self.r.read_u16::<LittleEndian>()),
+            bits_per_pixel:   try!(self.r.read_u16::<LittleEndian>()),
+            compression:      try!(self.r.read_u32::<LittleEndian>()),
+            bitmap_size:      try!(self.r.read_u32::<LittleEndian>()),
+            horz_resolution:  try!(self.r.read_i32::<LittleEndian>()),
+            vert_resolution:  try!(self.r.read_i32::<LittleEndian>()),
+            colors_used:      try!(self.r.read_u32::<LittleEndian>()),
+            colors_important: try!(self.r.read_u32::<LittleEndian>()),
         };
 
         match dib.header_size {
@@ -164,7 +162,7 @@ impl<R: Reader + Seek> BMPDecoder<R> {
         let mut data = Vec::with_capacity(self.height as usize * self.width as usize);
         let padding = self.width as i64 % 4;
         // seek until data
-        try!(self.r.seek(self.pixel_offset as i64, SeekSet));
+        try!(self.r.seek(SeekFrom::Start(self.pixel_offset as u64)));
         // read pixels until padding
         let mut px = [0; 3];
         for _ in 0 .. self.height {
@@ -173,13 +171,13 @@ impl<R: Reader + Seek> BMPDecoder<R> {
                 data.push_all(&[px[2], px[1], px[0]]);
             }
             // seek padding
-            try!(self.r.seek(padding, SeekCur));
+            try!(self.r.seek(SeekFrom::Current(padding)));
         }
         Ok(data)
     }
 }
 
-impl<R: Reader + Seek> ImageDecoder for BMPDecoder<R> {
+impl<R: Read + Seek> ImageDecoder for BMPDecoder<R> {
     fn dimensions(&mut self) -> ImageResult<(u32, u32)> {
         let _ = try!(self.read_dib_header());
 
@@ -219,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_read_bmp_image_coordinates() {
-        let img = open(&Path::new("tests/images/bmp/rgbw.bmp")).unwrap();
+        let img = open("tests/images/bmp/rgbw.bmp").unwrap();
         let rgb = img.as_rgb8().unwrap();
 
         assert_eq!(rgb.dimensions(), (2, 2));
@@ -227,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_read_bmp_image_data() {
-        let img = open(&Path::new("tests/images/bmp/rgbw.bmp")).unwrap();
+        let img = open("tests/images/bmp/rgbw.bmp").unwrap();
 
         let rgb = img.as_rgb8().unwrap();
         assert_eq!(rgb.get_pixel(0, 1).channels(), [255, 0, 0]);
