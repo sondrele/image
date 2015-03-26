@@ -1,6 +1,7 @@
-use std::old_io;
-use std::old_io::*;
-use std::old_path::*;
+use std::io;
+use std::io::{Read, Write, Seek, BufReader};
+use std::path::Path;
+use std::fs::File;
 use std::iter;
 use std::ascii::OwnedAsciiExt;
 
@@ -341,7 +342,7 @@ impl DynamicImage {
     }
 
     /// Encode this image and write it to ```w```
-    pub fn save<W: Writer>(&self, w: &mut W, format: ImageFormat) -> old_io::IoResult<ImageResult<()>> {
+    pub fn save<W: Write>(&self, w: &mut W, format: ImageFormat) -> io::Result<ImageResult<()>> {
         let bytes = self.raw_pixels();
         let (width, height) = self.dimensions();
         let color = self.color();
@@ -380,6 +381,7 @@ impl DynamicImage {
                 Ok(())
             }
 
+            #[cfg(feature = "bmp")]
             image::ImageFormat::BMP => {
                 let mut b = bmp::BMPEncoder::new(self.to_rgb());
 
@@ -517,14 +519,16 @@ fn image_to_bytes(image: &DynamicImage) -> Vec<u8> {
 
 /// Open the image located at the path specified.
 /// The image's format is determined from the path's file extension.
-pub fn open(path: &Path) -> ImageResult<DynamicImage> {
-    let fin = match old_io::File::open(path) {
+pub fn open<P>(path: P) -> ImageResult<DynamicImage> where P: AsRef<Path> {
+    let path = path.as_ref();
+
+    let fin = match File::open(path) {
         Ok(f)  => f,
         Err(err) => return Err(image::ImageError::IoError(err))
     };
 
-    let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+    let ext = path.extension().and_then(|s| s.to_str())
+                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
 
     let format = match &ext[..] {
         "bmp" => image::ImageFormat::BMP,
@@ -552,10 +556,12 @@ pub fn open(path: &Path) -> ImageResult<DynamicImage> {
 
 /// This will lead to corrupted files if the buffer contains malformed data. Currently only
 /// jpeg and png files are supported.
-pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: color::ColorType) ->  old_io::IoResult<()> {
-    let ref mut fout = try!(old_io::File::create(path));
-    let ext = path.extension_str()
-                  .map_or("".to_string(), | s | s.to_string().into_ascii_lowercase());
+pub fn save_buffer<P>(path: P, buf: &[u8], width: u32, height: u32, color: color::ColorType)
+                      -> io::Result<()> where P: AsRef<Path> {
+    let path = path.as_ref();
+    let ref mut fout = try!(File::create(path));
+    let ext = path.extension().and_then(|s| s.to_str())
+                  .map_or("".to_string(), |s| s.to_string().into_ascii_lowercase());
 
     match &*ext {
         #[cfg(feature = "jpeg")]
@@ -565,30 +571,30 @@ pub fn save_buffer(path: &Path, buf: &[u8], width: u32, height: u32, color: colo
         "png"  => png::PNGEncoder::new(fout).encode(buf, width, height, color),
         #[cfg(feature = "ppm")]
         "ppm"  => ppm::PPMEncoder::new(fout).encode(buf, width, height, color),
-        format => Err(old_io::IoError {
-            kind: old_io::InvalidInput,
-            desc: "Unsupported image format.",
-            detail: Some(format!(
+        format => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Unsupported image format.",
+            Some(format!(
                 "Image format image/{:?} is not supported.",
                 format
             ))
-        })
+        ))
     }
 }
 
 /// Create a new image from a Reader
-pub fn load<R: Reader+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
+pub fn load<R: Read+Seek>(r: R, format: ImageFormat) -> ImageResult<DynamicImage> {
     match format {
         #[cfg(feature = "bmp")]
         image::ImageFormat::BMP  => decoder_to_image(try!(bmp::BMPDecoder::new(r))),
         #[cfg(feature = "png")]
-        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::PNG  => decoder_to_image(png::PNGDecoder::new(BufReader::new(r))),
         #[cfg(feature = "gif")]
-        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::GIF  => decoder_to_image(gif::GIFDecoder::new(BufReader::new(r))),
         #[cfg(feature = "jpeg")]
-        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::JPEG => decoder_to_image(jpeg::JPEGDecoder::new(BufReader::new(r))),
         #[cfg(feature = "webp")]
-        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(old_io::BufferedReader::new(r))),
+        image::ImageFormat::WEBP => decoder_to_image(webp::WebpDecoder::new(BufReader::new(r))),
         #[cfg(feature = "tiff")]
         image::ImageFormat::TIFF => decoder_to_image(try!(tiff::TIFFDecoder::new(r))),
         #[cfg(feature = "tga")]
@@ -627,7 +633,7 @@ pub fn load_from_memory(buffer: &[u8]) -> ImageResult<DynamicImage> {
 /// Create a new image from a byte slice
 #[inline(always)]
 pub fn load_from_memory_with_format(buf: &[u8], format: ImageFormat) -> ImageResult<DynamicImage> {
-    let b = old_io::BufReader::new(buf);
+    let b = io::Cursor::new(buf);
     load(b, format)
 }
 
